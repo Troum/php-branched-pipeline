@@ -1,0 +1,18 @@
+{
+    "name": "troum/php-branched-pipeline",
+    "description": "Минимальная реализация паттерна Pipeline с поддержкой ветвлений",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Troum\\BranchedPipeline\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Ruslan Belchenkov",
+            "email": "troum@outlook.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {}
+}
