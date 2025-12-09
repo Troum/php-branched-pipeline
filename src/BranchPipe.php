@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Troum\BranchedPipeline;
 
 use Closure;
-use Troum\BranchedPipeline\PipeInterface;
 
 readonly class BranchPipe implements PipeInterface
 {
