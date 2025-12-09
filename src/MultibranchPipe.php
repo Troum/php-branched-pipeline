@@ -17,22 +17,15 @@ class MultibranchPipe implements PipeInterface
      */
     private array $branches = [];
 
+    /**
+     * @param array $branches
+     * @param string $mode
+     */
     public function __construct(
         array $branches = [],
         private readonly string $mode = self::MODE_FIRST_MATCH,
     ) {
-        foreach ($branches as $branch) {
-            if (!isset($branch['condition'], $branch['pipes'])) {
-                throw new InvalidArgumentException(
-                    'Каждое ветвление должно иметь: condition => Closure, pipes => array'
-                );
-            }
-
-            $this->branches[] = [
-                'condition' => $branch['condition'],
-                'pipes' => $branch['pipes'],
-            ];
-        }
+        $this->fill($branches);
     }
 
     /**
@@ -54,5 +47,25 @@ class MultibranchPipe implements PipeInterface
         }
 
         return $next($payload);
+    }
+
+    /**
+     * @param array $branches
+     * @return void
+     */
+    private function fill(array $branches): void
+    {
+        foreach ($branches as $branch) {
+            if (!isset($branch['condition'], $branch['pipes'])) {
+                throw new InvalidArgumentException(
+                    'Каждое ветвление должно иметь: condition => Closure, pipes => array'
+                );
+            }
+
+            $this->branches[] = [
+                'condition' => $branch['condition'],
+                'pipes' => $branch['pipes'],
+            ];
+        }
     }
 }
