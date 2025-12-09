@@ -6,5 +6,5 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'Troum\\BranchedPipeline\\' => array($baseDir . '/src'),
+    'Troum\\Pipeline\\' => array($baseDir . '/src'),
 );

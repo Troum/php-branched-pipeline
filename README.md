@@ -36,7 +36,7 @@
 Пайплайн передаёт данные от pipe к pipe.
 
 ```php
-use Troum\BranchedPipeline\{
+use Troum\Pipeline\{
     Pipeline,
     PipeInterface
 };
@@ -65,7 +65,7 @@ $result = $pipeline->process(['price' => 100]);
 Позволяет разделить выполнение по условию (например: новый покупатель / постоянный).
 
 ```php
-use Troum\BranchedPipeline;
+use Troum\Pipeline;
 
 $pipeline = (new Pipeline())->via([
     new CalculatePrice(),
@@ -90,7 +90,7 @@ $result = $pipeline->process([
 Маршрутизация обработки на основании значения указанного поля.
 
 ```php
-use Troum\BranchedPipeline;
+use Troum\Pipeline;
 
 $pipeline = (new Pipeline())->via([
     new AddTax(),
@@ -108,6 +108,49 @@ $pipeline = (new Pipeline())->via([
 ```
 
 Если значение поля отсутствует в `cases` — применяется `default`.
+
+---
+
+## Множественный выбор (SwitchPipe)
+
+Маршрутизация обработки на основании перечисляемого значения.
+
+```php
+enum CustomerType: string {
+    case Regular = 'regular';
+    case Vip = 'vip';
+    case Wholesale = 'wholesale';
+}
+
+$pipeline = (new \Troum\Pipeline\Pipeline())->via([
+    new AddTax(),
+
+    new \Troum\Pipeline\EnumSwitchPipe(
+        field: 'customer_type',
+        cases: [
+            CustomerType::Regular => [new ApplyRegularDiscount()],
+            CustomerType::Vip => [new ApplyVipDiscount()],
+            CustomerType::Wholesale => [new ApplyWholesaleDiscount()],
+        ]
+    ),
+]);
+
+$result = $pipeline->process([
+    'price' => 100,
+    'customer_type' => CustomerType::Vip,
+]);
+
+```
+
+Отличия от `SwitchPipe`
+
+| Особенность                | SwitchPipe             | EnumSwitchPipe                        |
+| -------------------------- | ---------------------- | ------------------------------------- |
+| Тип ключа                  | строка/число           | **backed enum**                       |
+| Валидация                  | нет                    | строгая                               |
+| Ошибки неправильного ключа | не выявляются          | приводят к исключению                 |
+| Идеально для               | API, строковых payload | строго типизированной доменной логики |
+
 
 ---
 

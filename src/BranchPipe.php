@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Troum\BranchedPipeline;
+namespace Troum\Pipeline;
 
 use Closure;
 

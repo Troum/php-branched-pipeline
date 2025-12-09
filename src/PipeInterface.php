@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Troum\BranchedPipeline;
+namespace Troum\Pipeline;
 
 use Closure;
 interface PipeInterface
 {
     /**
      * @param mixed $payload Входные данные
-     * @param Closure $next
+     * @param Closure $next Следующий шаг
      * @return mixed
      */
     public function handle(mixed $payload, Closure $next): mixed;

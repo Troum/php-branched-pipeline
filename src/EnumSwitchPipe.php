@@ -1,6 +1,8 @@
 <?php
 
-namespace Troum\BranchedPipeline;
+declare(strict_types=1);
+
+namespace Troum\Pipeline;
 
 use BackedEnum;
 use Closure;
