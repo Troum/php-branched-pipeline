@@ -23,7 +23,7 @@
         }
     ],
     "require": {
-        "troum/pipeline": "dev-main"
+        "troum/php-branched-pipeline": "dev-main"
     }
 }
 ```
