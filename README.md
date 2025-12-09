@@ -72,8 +72,8 @@ $pipeline = (new Pipeline())->via([
 
     new BranchPipe(
         condition: fn($p) => $p['is_new'] === true,
-        yesPipes: [new AddWelcomeCoupon()],
-        noPipes: [new ApplyLoyaltyDiscount()],
+        isTrueConditionPipes: [new AddWelcomeCoupon()],
+        isFalseConditionPipes: [new ApplyLoyaltyDiscount()],
     ),
 ]);
 
