@@ -154,6 +154,100 @@ $result = $pipeline->process([
 
 ---
 
+## Мультиветвление (MultibranchPipe)
+
+Позволяет выполнять несколько групп обработчиков в зависимости от набора условий.
+Поддерживает два режима работы:
+
+* `MODE_FIRST_MATCH` — выполняется только первая подходящая ветка (аналог `if / elseif`)
+* `MODE_ALL_MATCHES` — выполняются все ветки, где условие вернуло `true` (подходит для rule-based логики)
+
+Пример:
+
+```php
+use Troum\Pipeline\{
+    Pipeline,
+    MultibranchPipe,
+    PipeInterface
+};
+
+class AddGift implements PipeInterface {
+    public function handle($p, $n) {
+        $p['gift'] = 'cup';
+        return $n($p);
+    }
+}
+
+class AddWelcomeBonus implements PipeInterface {
+    public function handle($p, $n) {
+        $p['bonus'] = 10;
+        return $n($p);
+    }
+}
+
+class AddVipDiscount implements PipeInterface {
+    public function handle($p, $n) {
+        $p['price'] *= 0.8;
+        return $n($p);
+    }
+}
+
+$pipeline = (new Pipeline())->via([
+    new MultibranchPipe(
+        branches: [
+            [
+                'condition' => fn($p) => $p['price'] > 200,
+                'pipes' => [new AddGift()],
+            ],
+            [
+                'condition' => fn($p) => $p['is_new'] === true,
+                'pipes' => [new AddWelcomeBonus()],
+            ],
+            [
+                'condition' => fn($p) => $p['vip'] === true,
+                'pipes' => [new AddVipDiscount()],
+            ],
+        ],
+        mode: MultibranchPipe::MODE_ALL_MATCHES,
+    ),
+]);
+
+$result = $pipeline->process([
+    'price' => 250,
+    'is_new' => true,
+    'vip' => false,
+]);
+
+var_dump($result);
+```
+
+Результат при MODE_ALL_MATCHES:
+
+```
+[
+  'price' => 250,
+  'is_new' => true,
+  'vip' => false,
+  'gift' => 'cup',
+  'bonus' => 10,
+]
+```
+
+---
+
+## Когда использовать MultibranchPipe
+
+| Ситуация                                      | Рекомендуемый режим |
+| --------------------------------------------- | ------------------- |
+| Только одно условие должно сработать          | `MODE_FIRST_MATCH`  |
+| Логика сегментации / приоритета               | `MODE_FIRST_MATCH`  |
+| Можно применять несколько правил одновременно | `MODE_ALL_MATCHES`  |
+| Аналитика, акции, скидки, features            | `MODE_ALL_MATCHES`  |
+
+MultibranchPipe позволяет описывать бизнес-логику гибко и декларативно.
+
+---
+
 ## Контракт PipeInterface
 
 Каждый pipe обязан реализовать метод:

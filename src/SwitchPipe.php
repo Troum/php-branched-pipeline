@@ -18,6 +18,9 @@ readonly class SwitchPipe implements PipeInterface
         private array  $default = [],
     ) {}
 
+    /**
+     * @inheritDoc
+     */
     public function handle(mixed $payload, Closure $next): mixed
     {
         $value = $payload[$this->field] ?? null;
