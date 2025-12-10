@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Troum\Pipeline;
+namespace Troum\Pipeline\Pipes;
 
 use Closure;
+use Troum\Pipeline\Contracts\PipeInterface;
+use Troum\Pipeline\Core\Pipeline;
 
 readonly class BranchPipe implements PipeInterface
 {

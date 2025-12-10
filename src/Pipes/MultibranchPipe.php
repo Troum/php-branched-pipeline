@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Troum\Pipeline;
+namespace Troum\Pipeline\Pipes;
 
 use Closure;
 use InvalidArgumentException;
+use Troum\Pipeline\Contracts\PipeInterface;
+use Troum\Pipeline\Core\Pipeline;
 
 class MultibranchPipe implements PipeInterface
 {

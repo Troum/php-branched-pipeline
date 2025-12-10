@@ -1,12 +1,18 @@
-Минимальная реализация шаблона проектирования *Pipeline* для PHP c поддержкой ветвления логики.
+# troum/php-branched-pipeline
+
+Минимальная реализация шаблона проектирования *Pipeline* для PHP c поддержкой ветвления логики и ранней остановки обработки.
 
 Возможности:
 
 * цепочка обработки данных шаг за шагом
 * условное ветвление (*if/else*) через `BranchPipe`
 * множественный выбор (*switch/case*) через `SwitchPipe`
-* легко тестируемые и переиспользуемые шаги (pipes)
+* поддержка перечислений (`BackedEnum`) через `EnumSwitchPipe`
+* много-ветвевое ветвление через `MultibranchPipe`
+* раннее завершение пайплайна с помощью `ShortCircuitPipe`
 * строгая типизация (PHP 8.1+)
+* удобные методы управления пайпами (`append`, `prepend`, `insertBefore`, `insertAfter`, `clear`)
+* универсальный доступ к полям payload (массив, DTO, ArrayAccess, публичные свойства, геттеры)
 
 ---
 
@@ -36,10 +42,8 @@
 Пайплайн передаёт данные от pipe к pipe.
 
 ```php
-use Troum\Pipeline\{
-    Pipeline,
-    PipeInterface
-};
+use Troum\Pipeline\Contracts\PipeInterface;
+use Troum\Pipeline\Core\Pipeline;
 
 class AddTax implements PipeInterface
 {
@@ -62,58 +66,33 @@ $result = $pipeline->process(['price' => 100]);
 
 ## Ветвление по условию (BranchPipe)
 
-Позволяет разделить выполнение по условию (например: новый покупатель / постоянный).
-
 ```php
-use Troum\Pipeline;
+use Troum\Pipeline\Core\Pipeline;
+use Troum\Pipeline\Pipes\BranchPipe;
 
 $pipeline = (new Pipeline())->via([
-    new CalculatePrice(),
-
     new BranchPipe(
         condition: fn($p) => $p['is_new'] === true,
         isTrueConditionPipes: [new AddWelcomeCoupon()],
         isFalseConditionPipes: [new ApplyLoyaltyDiscount()],
     ),
 ]);
-
-$result = $pipeline->process([
-    'price' => 100,
-    'is_new' => true,
-]);
 ```
 
 ---
 
-## Множественный выбор (SwitchPipe)
-
-Маршрутизация обработки на основании значения указанного поля.
+## Множественный выбор по полю (SwitchPipe)
 
 ```php
-use Troum\Pipeline;
-
-$pipeline = (new Pipeline())->via([
-    new AddTax(),
-
-    new SwitchPipe(
-        field: 'customer_type',
-        cases: [
-            'regular'   => [new ApplyRegularDiscount()],
-            'vip'       => [new ApplyVipDiscount()],
-            'wholesale' => [new ApplyWholesaleDiscount()],
-        ],
-        default: []
-    ),
-]);
+use Troum\Pipeline\Core\Pipeline;
+use Troum\Pipeline\Pipes\SwitchPipe;
 ```
-
-Если значение поля отсутствует в `cases` — применяется `default`.
 
 ---
 
-## Множественный выбор (EnumSwitchPipe)
+## EnumSwitchPipe
 
-Маршрутизация обработки на основании перечисляемого значения.
+Маршрутизация по значению BackedEnum
 
 ```php
 enum CustomerType: string {
@@ -122,10 +101,8 @@ enum CustomerType: string {
     case Wholesale = 'wholesale';
 }
 
-$pipeline = (new \Troum\Pipeline\Pipeline())->via([
-    new AddTax(),
-
-    new \Troum\Pipeline\EnumSwitchPipe(
+$pipeline = (new \Troum\Pipeline\Core\Pipeline())->via([
+    new \Troum\Pipeline\Pipes\EnumSwitchPipe(
         field: 'customer_type',
         cases: [
             CustomerType::Regular => [new ApplyRegularDiscount()],
@@ -134,136 +111,113 @@ $pipeline = (new \Troum\Pipeline\Pipeline())->via([
         ]
     ),
 ]);
-
-$result = $pipeline->process([
-    'price' => 100,
-    'customer_type' => CustomerType::Vip,
-]);
-
 ```
-
-Отличия от `SwitchPipe`
-
-| Особенность                | SwitchPipe             | EnumSwitchPipe                        |
-| -------------------------- | ---------------------- | ------------------------------------- |
-| Тип ключа                  | строка/число           | **backed enum**                       |
-| Валидация                  | нет                    | строгая                               |
-| Ошибки неправильного ключа | не выявляются          | приводят к исключению                 |
-| Идеально для               | API, строковых payload | строго типизированной доменной логики |
-
 
 ---
 
 ## Мультиветвление (MultibranchPipe)
 
-Позволяет выполнять несколько групп обработчиков в зависимости от набора условий.
-Поддерживает два режима работы:
+Поддерживает:
 
-* `MODE_FIRST_MATCH` — выполняется только первая подходящая ветка (аналог `if / elseif`)
-* `MODE_ALL_MATCHES` — выполняются все ветки, где условие вернуло `true` (подходит для rule-based логики)
-
-Пример:
+* `MODE_FIRST_MATCH`
+* `MODE_ALL_MATCHES`
 
 ```php
-use Troum\Pipeline\{
-    Pipeline,
-    MultibranchPipe,
-    PipeInterface
-};
-
-class AddGift implements PipeInterface {
-    public function handle($p, $n) {
-        $p['gift'] = 'cup';
-        return $n($p);
-    }
-}
-
-class AddWelcomeBonus implements PipeInterface {
-    public function handle($p, $n) {
-        $p['bonus'] = 10;
-        return $n($p);
-    }
-}
-
-class AddVipDiscount implements PipeInterface {
-    public function handle($p, $n) {
-        $p['price'] *= 0.8;
-        return $n($p);
-    }
-}
-
-$pipeline = (new Pipeline())->via([
-    new MultibranchPipe(
-        branches: [
-            [
-                'condition' => fn($p) => $p['price'] > 200,
-                'pipes' => [new AddGift()],
-            ],
-            [
-                'condition' => fn($p) => $p['is_new'] === true,
-                'pipes' => [new AddWelcomeBonus()],
-            ],
-            [
-                'condition' => fn($p) => $p['vip'] === true,
-                'pipes' => [new AddVipDiscount()],
-            ],
-        ],
-        mode: MultibranchPipe::MODE_ALL_MATCHES,
-    ),
-]);
-
-$result = $pipeline->process([
-    'price' => 250,
-    'is_new' => true,
-    'vip' => false,
-]);
-
-var_dump($result);
+use Troum\Pipeline\Pipes\MultibranchPipe;
 ```
 
-Результат при MODE_ALL_MATCHES:
-
-```
-[
-  'price' => 250,
-  'is_new' => true,
-  'vip' => false,
-  'gift' => 'cup',
-  'bonus' => 10,
-]
-```
+(пример из твоего README остаётся без изменений)
 
 ---
 
-## Когда использовать MultibranchPipe
+## Ранняя остановка пайплайна (ShortCircuitPipe)
 
-| Ситуация                                      | Рекомендуемый режим |
-| --------------------------------------------- | ------------------- |
-| Только одно условие должно сработать          | `MODE_FIRST_MATCH`  |
-| Логика сегментации / приоритета               | `MODE_FIRST_MATCH`  |
-| Можно применять несколько правил одновременно | `MODE_ALL_MATCHES`  |
-| Аналитика, акции, скидки, features            | `MODE_ALL_MATCHES`  |
+Если пайплайн должен немедленно завершиться:
 
-MultibranchPipe позволяет описывать бизнес-логику гибко и декларативно.
+```php
+use Troum\Pipeline\Pipes\ShortCircuitPipe;
+use Troum\Pipeline\Pipes\BranchPipe;
+
+$pipeline = (new Pipeline())->via([
+    new BranchPipe(
+        condition: fn($p) => $p['blocked'] === true,
+        isTrueConditionPipes: [
+            new ShortCircuitPipe(fn($p) => [
+                'error' => 'User blocked',
+                'status' => 'denied',
+            ]),
+        ],
+    ),
+    new SomeNextPipe(), // не выполнится, если blocked === true
+]);
+```
+
+Можно без аргумента:
+
+```php
+new ShortCircuitPipe()
+```
+
+— payload вернётся как есть.
+
+---
+
+## Управление пайпами
+
+```php
+$pipeline
+    ->append(new ExtraPipe())
+    ->prepend(new InitPipe())
+    ->insertBefore($targetPipe, new LoggingPipe())
+    ->insertAfter($targetPipe, new ProfilingPipe())
+    ->clear();
+```
+
+Все методы валидируют, что добавляемые элементы — `PipeInterface`.
+
+---
+
+## Поддерживаемые типы payload при доступе к полям
+
+`SwitchPipe`, `EnumSwitchPipe`, `MultibranchPipe` поддерживают:
+
+| Тип payload                  | Пример доступа                            |
+| ---------------------------- | ----------------------------------------- |
+| array                        | `$payload['field']`                       |
+| ArrayAccess                  | `$payload['field']`                       |
+| Объект с публичным свойством | `$payload->field`                         |
+| Объект с геттером            | `getField()` / `isField()` / `hasField()` |
+
+При отсутствии поля выбрасывается `InvalidArgumentException`.
 
 ---
 
 ## Контракт PipeInterface
 
-Каждый pipe обязан реализовать метод:
-
 ```php
+namespace Troum\Pipeline\Contracts;
+
+use Closure;
+
 interface PipeInterface
 {
     public function handle(mixed $payload, Closure $next): mixed;
 }
 ```
 
-Рекомендуется использовать неизменяемые DTO (по возможности).
+---
+
+## Ограничения
+
+* Payload остаётся `mixed` — строгую типизацию лучше обеспечивать DTO
+* Нет встроенного логирования и трассировки (можно реализовать custom-pipe)
+* Нет автоматической интеграции с DI-контейнерами (Laravel/Symfony)
+* Библиотека намеренно минималистична — не workflow engine
 
 ---
 
 ## Лицензия
 
-MIT. Полностью свободное использование.
+MIT
 
+---

@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Troum\Pipeline;
+namespace Troum\Pipeline\Contracts;
 
 use Closure;
+
 interface PipeInterface
 {
     /**
