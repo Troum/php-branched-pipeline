@@ -13,7 +13,7 @@
 * строгая типизация (PHP 8.1+)
 * удобные методы управления пайпами (`append`, `prepend`, `insertBefore`, `insertAfter`, `clear`)
 * универсальный доступ к полям payload (массив, DTO, ArrayAccess, публичные свойства, геттеры)
-
+* интеграция с Laravel/Symfony
 ---
 
 ## Установка
@@ -66,6 +66,8 @@ $result = $pipeline->process(['price' => 100]);
 
 ## Ветвление по условию (BranchPipe)
 
+Позволяет разделить выполнение по условию (например: новый покупатель / постоянный).
+
 ```php
 use Troum\Pipeline\Core\Pipeline;
 use Troum\Pipeline\Pipes\BranchPipe;
@@ -77,6 +79,11 @@ $pipeline = (new Pipeline())->via([
         isFalseConditionPipes: [new ApplyLoyaltyDiscount()],
     ),
 ]);
+
+$result = $pipeline->process([
+    'price' => 100,
+    'is_new' => true,
+]);
 ```
 
 ---
@@ -86,7 +93,23 @@ $pipeline = (new Pipeline())->via([
 ```php
 use Troum\Pipeline\Core\Pipeline;
 use Troum\Pipeline\Pipes\SwitchPipe;
+
+$pipeline = (new Pipeline())->via([
+    new AddTax(),
+
+    new SwitchPipe(
+        field: 'customer_type',
+        cases: [
+            'regular'   => [new ApplyRegularDiscount()],
+            'vip'       => [new ApplyVipDiscount()],
+            'wholesale' => [new ApplyWholesaleDiscount()],
+        ],
+        default: []
+    ),
+]);
 ```
+
+Если значение поля отсутствует в `cases` — применяется `default`.
 
 ---
 
@@ -113,6 +136,16 @@ $pipeline = (new \Troum\Pipeline\Core\Pipeline())->via([
 ]);
 ```
 
+Отличия от `SwitchPipe`
+
+| Особенность                | SwitchPipe             | EnumSwitchPipe                        |
+| -------------------------- | ---------------------- | ------------------------------------- |
+| Тип ключа                  | строка/число           | **backed enum**                       |
+| Валидация                  | нет                    | строгая                               |
+| Ошибки неправильного ключа | не выявляются          | приводят к исключению                 |
+| Идеально для               | API, строковых payload | строго типизированной доменной логики |
+
+
 ---
 
 ## Мультиветвление (MultibranchPipe)
@@ -124,9 +157,86 @@ $pipeline = (new \Troum\Pipeline\Core\Pipeline())->via([
 
 ```php
 use Troum\Pipeline\Pipes\MultibranchPipe;
+
+class AddGift implements PipeInterface {
+    public function handle($p, $n) {
+        $p['gift'] = 'cup';
+        return $n($p);
+    }
+}
+
+class AddWelcomeBonus implements PipeInterface {
+    public function handle($p, $n) {
+        $p['bonus'] = 10;
+        return $n($p);
+    }
+}
+
+class AddVipDiscount implements PipeInterface {
+    public function handle($p, $n) {
+        $p['price'] *= 0.8;
+        return $n($p);
+    }
+}
+
+$pipeline = (new Pipeline())->via([
+    new MultibranchPipe(
+        branches: [
+            [
+                'condition' => fn($p) => $p['price'] > 200,
+                'pipes' => [new AddGift()],
+            ],
+            [
+                'condition' => fn($p) => $p['is_new'] === true,
+                'pipes' => [new AddWelcomeBonus()],
+            ],
+            [
+                'condition' => fn($p) => $p['vip'] === true,
+                'pipes' => [new AddVipDiscount()],
+            ],
+        ],
+        mode: MultibranchPipe::MODE_ALL_MATCHES,
+    ),
+]);
+
+$result = $pipeline->process([
+    'price' => 250,
+    'is_new' => true,
+    'vip' => false,
+]);
+
+var_dump($result);
 ```
 
----
+Результат при MODE_ALL_MATCHES:
+
+```
+[
+  'price' => 250,
+  'is_new' => true,
+  'vip' => false,
+  'gift' => 'cup',
+  'bonus' => 10,
+]
+```
+## Когда использовать MultibranchPipe
+
+| Ситуация                                      | Рекомендуемый режим |
+| --------------------------------------------- | ------------------- |
+| Только одно условие должно сработать          | `MODE_FIRST_MATCH`  |
+| Логика сегментации / приоритета               | `MODE_FIRST_MATCH`  |
+| Можно применять несколько правил одновременно | `MODE_ALL_MATCHES`  |
+| Аналитика, акции, скидки, features            | `MODE_ALL_MATCHES`  |
+
+MultibranchPipe позволяет описывать бизнес-логику гибко и декларативно.
+```
+
+class AddGift implements PipeInterface {
+    public function handle($p, $n) {
+        $p['gift'] = 'cup';
+        return $n($p);
+    }
+}
 
 ## Ранняя остановка пайплайна (ShortCircuitPipe)
 
@@ -192,6 +302,8 @@ $pipeline
 
 ## Контракт PipeInterface
 
+Каждый pipe обязан реализовать метод:
+
 ```php
 namespace Troum\Pipeline\Contracts;
 
@@ -202,12 +314,6 @@ interface PipeInterface
     public function handle(mixed $payload, Closure $next): mixed;
 }
 ```
-
-Отлично — я подготовил две секции **в твоём стиле**, с правильными namespace-ами, без иконок и лишней воды.
-Можно просто вставить в конец README.md перед блоком “Лицензия”.
-
-При необходимости — отформатирую и интегрирую в твой текущий файл.
-
 ---
 
 ## Интеграция с Laravel
@@ -289,7 +395,6 @@ Lazy-loading особенно эффективен при использован
 
 * Payload остаётся `mixed` — строгую типизацию лучше обеспечивать DTO
 * Нет встроенного логирования и трассировки (можно реализовать custom-pipe)
-* Нет автоматической интеграции с DI-контейнерами (Laravel/Symfony)
 * Библиотека намеренно минималистична — не workflow engine
 
 ---
