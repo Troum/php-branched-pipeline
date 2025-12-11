@@ -375,7 +375,7 @@ class TestController extends AbstractController
     {
         $result = $pipeline
             ->via([
-                ValidatePipe::class, // лениво резолвится при выполнении
+                ValidatePipe::class,
                 BusinessLogicPipe::class,
             ])
             ->process(['price' => 200]);
